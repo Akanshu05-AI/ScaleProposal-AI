@@ -1,75 +1,106 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import DashboardStats from "@/components/dashboard/DashboardStats";
 import ProposalForm from "@/components/proposal/ProposalForm";
 import WorkflowTimeline from "@/components/workflow/WorkflowTimeline";
 import ProposalViewer from "@/components/proposal/ProposalViewer";
-import HistorySidebar, { ProposalHistoryItem } from "@/components/dashboard/HistorySidebar";
+import HistorySidebar from "@/components/dashboard/HistorySidebar";
+import { ProposalResponse, ProposalSummaryItem } from "@/types/proposal";
+import { apiService } from "@/services/api";
 
 export default function Home() {
-  const [proposal, setProposal] = useState("");
-  const [plannerData, setPlannerData] = useState("");
-  const [pricingData, setPricingData] = useState("");
-  const [riskData, setRiskData] = useState("");
+  const [proposalResponse, setProposalResponse] = useState<ProposalResponse | null>(null);
   const [, setLoading] = useState(false);
-  const [historyList, setHistoryList] = useState<ProposalHistoryItem[]>([]);
+  const [historyList, setHistoryList] = useState<ProposalSummaryItem[]>([]);
+  const [selectedProposalId, setSelectedProposalId] = useState<string | null>(null);
 
-  const handleAddHistory = (newItem: { company: string; projectType: string; cost: string }) => {
-    const historicalRecord: ProposalHistoryItem = {
-      id: Date.now().toString(),
-      company: newItem.company,
-      projectType: newItem.projectType,
-      date: "Just now",
-      cost: newItem.cost,
-      status: "verified"
-    };
-    setHistoryList((prev) => [historicalRecord, ...prev]);
+  // Fetch proposals history list from backend
+  const loadHistory = useCallback(async () => {
+    try {
+      const data = await apiService.listProposals();
+      setHistoryList(data.proposals || []);
+    } catch (err) {
+      console.warn("Could not connect to backend database history:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadHistory();
+  }, [loadHistory]);
+
+  // Load a historical proposal into the main viewer workspace
+  const handleSelectProposal = async (id: string) => {
+    setSelectedProposalId(id);
+    setLoading(true);
+    try {
+      const detailedProposal = await apiService.getProposal(id);
+      setProposalResponse(detailedProposal);
+    } catch (err) {
+      console.error("Failed to load selected proposal details:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Delete a historical proposal
+  const handleDeleteProposal = async (id: string) => {
+    try {
+      await apiService.deleteProposal(id);
+      setHistoryList((prev) => prev.filter((item) => item.id !== id && item.workflow_id !== id));
+      if (selectedProposalId === id) {
+        setSelectedProposalId(null);
+        setProposalResponse(null);
+      }
+    } catch (err) {
+      console.error("Failed to delete proposal:", err);
+    }
   };
 
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100 p-4 sm:p-8 selection:bg-blue-500/30 overflow-x-hidden relative">
+      {/* Background ambient lighting effects */}
       <div className="absolute top-0 left-1/4 h-[500px] w-[500px] rounded-full bg-blue-600/5 blur-[120px] pointer-events-none" />
       <div className="absolute top-1/3 right-1/4 h-[400px] w-[400px] rounded-full bg-violet-600/5 blur-[120px] pointer-events-none" />
 
       <div className="mx-auto max-w-[1600px] space-y-8 relative z-10">
-        
-        <div className="flex items-center justify-between border-b border-zinc-900 pb-6">
+        {/* Navigation / Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-zinc-900 pb-6 gap-4">
           <div>
             <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white via-zinc-200 to-zinc-500 bg-clip-text text-transparent">
               ScaleProposal AI
             </h1>
-            <p className="text-xs text-zinc-500 mt-1">
-              Multi-Agent Hybrid Infrastructure Architecture Suite
+            <p className="text-xs text-zinc-400 mt-1">
+              Production-Grade Multi-Agent Proposal Generation Platform
             </p>
           </div>
-          <div className="flex items-center gap-2 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 text-xs font-medium text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.05)]">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            AI Pipeline Online
+          <div className="flex items-center gap-2 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-1.5 text-xs font-medium text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.05)] self-start sm:self-auto">
+            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+            Hybrid AI Engine Active
           </div>
         </div>
 
         <DashboardStats />
 
+        {/* Workspace Layout Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-          <div className="lg:col-span-3 min-h-[500px]">
-            <HistorySidebar history={historyList} />
+          <div className="lg:col-span-3 min-h-[450px]">
+            <HistorySidebar
+              history={historyList}
+              onSelectProposal={handleSelectProposal}
+              onDeleteProposal={handleDeleteProposal}
+              activeProposalId={selectedProposalId}
+            />
           </div>
 
           <div className="lg:col-span-4">
-            <ProposalForm 
-              setProposal={(content: any) => {
-                if (typeof content === 'object' && content !== null) {
-                  setProposal(content.proposal || "");
-                  setPlannerData(content.planner_data || "");
-                  setPricingData(content.pricing_data || "");
-                  setRiskData(content.risk_data || "");
-                } else {
-                  setProposal(content);
-                }
-              }} 
-              setLoading={setLoading} 
-              onAddHistory={handleAddHistory} 
+            <ProposalForm
+              setProposalResponse={(response) => {
+                setProposalResponse(response);
+                setSelectedProposalId(response.id);
+              }}
+              setLoading={setLoading}
+              onRefreshHistory={loadHistory}
             />
           </div>
 
@@ -78,20 +109,20 @@ export default function Home() {
           </div>
         </div>
 
+        {/* Proposal Output Workspace */}
         <div className="pt-4">
-          <div className="mb-4">
-            <h3 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
               Generated Blueprint Output Workspace
             </h3>
+            {proposalResponse && (
+              <span className="text-xs text-zinc-500 font-mono">
+                Session: {proposalResponse.workflow_id}
+              </span>
+            )}
           </div>
-          <ProposalViewer 
-            proposal={proposal} 
-            plannerData={plannerData}
-            pricingData={pricingData}
-            riskData={riskData}
-          />
+          <ProposalViewer proposalResponse={proposalResponse} />
         </div>
-
       </div>
     </main>
   );

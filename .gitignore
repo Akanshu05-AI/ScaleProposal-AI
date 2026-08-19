@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+backend/venv/
+venv/
+ENV/
+env/
+.pytest_cache/
+*.db
+*.sqlite3
+scaleproposal.db
+backend/scaleproposal.db
+backend/.env
+
+# Node / Next.js
+frontend/node_modules/
+node_modules/
+frontend/.next/
+.next/
+frontend/out/
+out/
+frontend/build/
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+.DS_Store
+*.pem
+*.log
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/settings.json

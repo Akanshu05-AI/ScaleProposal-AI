@@ -1,25 +1,53 @@
-from google import genai
-from app.core.config import settings
+from typing import Type, TypeVar, Optional
+from pydantic import BaseModel
+
+from app.services.ai.gemini_provider import GeminiProvider
+from app.services.ai.provider import AIProvider
+
+T = TypeVar("T", bound=BaseModel)
 
 
-class GeminiService:
+class AIService:
+    """
+    Unified AI Service Facade managing AI provider interactions across agents.
+    Provides async non-blocking generation for text and structured schemas.
+    """
 
-    @staticmethod
-    def generate(prompt: str) -> str:
-        try:
-            client = genai.Client(api_key=settings.GEMINI_API_KEY)
+    _provider: Optional[AIProvider] = None
 
-            response = client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=prompt,
-            )
+    @classmethod
+    def get_provider(cls) -> AIProvider:
+        """Get or initialize default AI Provider (GeminiProvider)."""
+        if cls._provider is None:
+            cls._provider = GeminiProvider()
+        return cls._provider
 
-            return response.text
+    @classmethod
+    def set_provider(cls, provider: AIProvider) -> None:
+        """Set or mock AI Provider (useful for unit testing)."""
+        cls._provider = provider
 
-        except Exception as e:
-            print("=" * 60)
-            print("GEMINI ERROR")
-            print(e)
-            print("=" * 60)
+    @classmethod
+    async def generate_text(cls, prompt: str, system_instruction: Optional[str] = None) -> str:
+        """Generate text/markdown using configured AI provider."""
+        provider = cls.get_provider()
+        return await provider.generate_text(prompt, system_instruction=system_instruction)
 
-            return f"Gemini Error: {str(e)}"
+    @classmethod
+    async def generate_structured(
+        cls,
+        prompt: str,
+        response_schema: Type[T],
+        system_instruction: Optional[str] = None
+    ) -> T:
+        """Generate structured Pydantic object using configured AI provider."""
+        provider = cls.get_provider()
+        return await provider.generate_structured(
+            prompt,
+            response_schema=response_schema,
+            system_instruction=system_instruction
+        )
+
+
+# Backward compatibility alias
+GeminiService = AIService

@@ -1,11 +1,13 @@
 import axios from "axios";
 import type {
-  ProposalRequest,
+  ProposalCreatePayload,
   ProposalResponse,
 } from "@/types/proposal";
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+
 const api = axios.create({
-  baseURL: "http://127.0.0.1:8000/api/v1",
+  baseURL: API_BASE_URL,
   headers: {
     "Content-Type": "application/json",
   },
@@ -13,10 +15,10 @@ const api = axios.create({
 });
 
 export async function generateProposal(
-  data: ProposalRequest
+  data: ProposalCreatePayload
 ): Promise<ProposalResponse> {
   const response = await api.post<ProposalResponse>(
-    "/proposal",
+    "/proposals",
     data
   );
 

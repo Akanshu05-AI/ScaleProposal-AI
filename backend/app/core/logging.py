@@ -1,8 +1,22 @@
 import logging
+import sys
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(message)s"
-)
 
-logger = logging.getLogger("ScaleProposalAI")
+def setup_logging() -> logging.Logger:
+    """Configures structured logging for ScaleProposal AI."""
+    logger = logging.getLogger("scaleproposal")
+    logger.setLevel(logging.INFO)
+
+    if not logger.handlers:
+        handler = logging.StreamHandler(sys.stdout)
+        formatter = logging.Formatter(
+            "[%(asctime)s] [%(levelname)s] [%(name)s]: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S"
+        )
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+
+    return logger
+
+
+logger = setup_logging()

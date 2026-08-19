@@ -1,88 +1,79 @@
 from contextlib import asynccontextmanager
-
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.core.config import settings
+from app.core.logging import logger
+from app.core.exceptions import ScaleProposalException, create_error_response
+from app.database.database import engine, Base
 
 # API Routes
 from app.api.v1.routes.health import router as health_router
 from app.api.v1.routes.proposal import router as proposal_router
 from app.api.v1.routes.workflow import router as workflow_router
+from app.api.v1.routes.ai import router as ai_router
 
-
-# ---------------------------------------------------
-# Application Lifespan
-# ---------------------------------------------------
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("\n===================================")
-    print("🚀 ScaleProposal AI Backend Started")
-    print("===================================\n")
+    logger.info("===================================")
+    logger.info("🚀 ScaleProposal AI Backend Starting")
+    logger.info("===================================")
+    
+    # Initialize database tables
+    try:
+        Base.metadata.create_all(bind=engine)
+        logger.info("Database tables verified/created successfully.")
+    except Exception as e:
+        logger.error(f"Failed to initialize database tables: {e}")
 
     yield
 
-    print("\n===================================")
-    print("🛑 ScaleProposal AI Backend Stopped")
-    print("===================================\n")
+    logger.info("===================================")
+    logger.info("🛑 ScaleProposal AI Backend Stopped")
+    logger.info("===================================")
 
-
-# ---------------------------------------------------
-# FastAPI Application
-# ---------------------------------------------------
 
 app = FastAPI(
     title=settings.APP_NAME,
-    description="Hybrid Multi-Agent Proposal Generation API",
+    description="Production-Grade Hybrid Multi-Agent Proposal Generation API",
     version=settings.VERSION,
     lifespan=lifespan,
 )
 
 
-# ---------------------------------------------------
-# CORS
-# ---------------------------------------------------
-
+# CORS Configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "https://scale-proposal-ai.vercel.app"
-    ],
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
-# ---------------------------------------------------
-# API Routes
-# ---------------------------------------------------
-
-app.include_router(
-    health_router,
-    prefix=settings.API_V1_STR,
-    tags=["Health"],
-)
-
-app.include_router(
-    proposal_router,
-    prefix=settings.API_V1_STR,
-    tags=["Proposal"],
-)
-
-app.include_router(
-    workflow_router,
-    prefix=settings.API_V1_STR,
-    tags=["Workflow"],
-)
+# Global Exception Handler
+@app.exception_handler(ScaleProposalException)
+async def custom_exception_handler(request: Request, exc: ScaleProposalException):
+    return JSONResponse(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        content={
+            "error": {
+                "code": exc.__class__.__name__,
+                "message": exc.message,
+                "details": exc.details
+            }
+        }
+    )
 
 
-# ---------------------------------------------------
-# Root Endpoint
-# ---------------------------------------------------
+# API Routers
+app.include_router(health_router, prefix=settings.API_V1_STR)
+app.include_router(proposal_router, prefix=settings.API_V1_STR)
+app.include_router(workflow_router, prefix=settings.API_V1_STR)
+app.include_router(ai_router, prefix=settings.API_V1_STR)
+
 
 @app.get("/", tags=["Home"])
 async def root():
@@ -90,13 +81,9 @@ async def root():
         "application": settings.APP_NAME,
         "version": settings.VERSION,
         "status": "running",
-        "message": "🚀 Welcome to ScaleProposal AI Backend",
+        "message": "🚀 Welcome to ScaleProposal AI Backend API",
     }
 
-
-# ---------------------------------------------------
-# Health Check
-# ---------------------------------------------------
 
 @app.get("/ping", tags=["Health"])
 async def ping():
