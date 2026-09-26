@@ -1,4 +1,5 @@
-from typing import List
+from typing import List, Union
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -22,11 +23,29 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///./scaleproposal.db"
 
     # Security & CORS
-    CORS_ORIGINS: List[str] = [
+    CORS_ORIGINS: Union[List[str], str] = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "https://scale-proposal-ai.vercel.app"
     ]
+
+    @field_validator("CORS_ORIGINS", mode="after")
+    @classmethod
+    def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
+        if isinstance(v, str):
+            v = v.strip()
+            if v == "*":
+                return ["*"]
+            if v.startswith("[") and v.endswith("]"):
+                import json
+                try:
+                    return json.loads(v)
+                except Exception:
+                    pass
+            return [i.strip() for i in v.split(",") if i.strip()]
+        elif isinstance(v, list):
+            return v
+        return []
 
     model_config = SettingsConfigDict(
         env_file=".env",
